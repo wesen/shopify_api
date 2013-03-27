@@ -1,8 +1,6 @@
 <?php
 
 	namespace sandeepshetty\shopify_api;
-	require 'vendor/autoload.php';
-
 
 	function install_url($shop, $api_key)
 	{
@@ -44,26 +42,36 @@
 	{
 		$password = $shops_token;
 		$baseurl = "https://$shop/";
+    $curl_opts = array();
 
-		return function ($method, $path, $params=array(), &$response_headers=array()) use ($baseurl, $shops_token)
+    if ($private_app) {
+      $curl_opts[CURLOPT_USERPWD] = $api_key.":".$shared_secret;
+    }
+
+		return function ($method, $path, $params=array(), &$response_headers=array()) use ($baseurl, $shops_token, $private_app, $curl_opts)
 		{
 			$url = $baseurl.ltrim($path, '/');
 			$query = in_array($method, array('GET','DELETE')) ? $params : array();
 			$payload = in_array($method, array('POST','PUT')) ? stripslashes(json_encode($params)) : array();
 
 			$request_headers = array();
-			array_push($request_headers, "X-Shopify-Access-Token: $shops_token");
-			if (in_array($method, array('POST','PUT'))) array_push($request_headers, "Content-Type: application/json; charset=utf-8");
+      if (!$private_app) {
+        array_push($request_headers, "X-Shopify-Access-Token: $shops_token");
+      }
+			if (in_array($method, array('POST','PUT'))) {
+        array_push($request_headers, "Content-Type: application/json; charset=utf-8");
+      }
 
-			return _api($method, $url, $query, $payload, $request_headers, $response_headers);
+      return _api($method, $url, $query, $payload, $request_headers, $response_headers, $curl_opts);
+
 		};
 	}
 
-		function _api($method, $url, $query='', $payload='', $request_headers=array(), &$response_headers=array())
+		function _api($method, $url, $query='', $payload='', $request_headers=array(), &$response_headers=array(), $curl_opts=array())
 		{
 			try
 			{
-				$response = wcurl($method, $url, $query, $payload, $request_headers, $response_headers);
+				$response = wcurl($method, $url, $query, $payload, $request_headers, $response_headers, $curl_opts);
 			}
 			catch(WcurlException $e)
 			{
@@ -105,7 +113,7 @@
 
 
 	class CurlException extends \Exception { }
-	class Exception extends \Exception
+	class ApiException extends \Exception
 	{
 		protected $info;
 
